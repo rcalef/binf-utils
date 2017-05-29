@@ -1,0 +1,131 @@
+#! /usr/bin/env python3.5
+import sys
+import argparse
+import gzip
+
+from binf_utils.fasta_fastq_parser import *
+
+
+def input_type(filename):
+    if filename == "-": 
+        return sys.stdin
+    elif filename.endswith(".gz"): 
+        return gzip.open(filename, 'r')
+    else:
+        return open(filename,'r')
+
+def parse_arg(args):
+    argparser = argparse.ArgumentParser(description = (
+        "Convert between FASTx file types containing sequence and/or "
+        "quality information, with optional trimming based on quality scores." 
+        "If using a '.qual' file, it must contain the same number of entries "
+        "as the FASTA file, with each entry beginning with the same header "
+        "as it's corresponding FASTA sequence. Quality information in '.qual' "
+        "files must be encoded as whitespace separated decimal numbers, "
+        "not ASCII characters."))
+    input_format = argparser.add_mutually_exclusive_group(required = True)
+    input_format.add_argument('--in_33', action = 'store',
+        type=input_type,
+        dest = 'in_33', help = ("Specifies the name of an input FASTQ "
+            "file with scores in Phred+33 format."))
+    input_format.add_argument('--in_64', action = 'store',
+        type = input_type,
+        dest = 'in_64', help = ("Specifies the name of an input FASTQ "
+            "file with scores in Phred+64 format."))
+    input_format.add_argument('--in_fasta', action = 'store',
+        type = input_type,
+        dest = 'in_fasta', help = ("Specifies the name of "
+            "the input FASTA file. Requires a file with numerical quality "
+            "scores specified by --in_qual."))
+    argparser.add_argument('--in_qual', action = 'store',
+        type = input_type,
+        dest = 'in_qual', help =("Specifies the name of "
+            "the input quality file containing numerical scores "
+            "corresponding to the FASTA sequences specified by "
+            "--in_fasta."))
+
+    output_format = argparser.add_argument_group()
+    output_format.add_argument('--out_33', action = 'store',
+       type = argparse.FileType('w'),
+       dest = 'out_33', help = ("Outputs sequence information in "
+           "FASTQ format with Phred+33 scores to the specified file."))
+    output_format.add_argument('--out_64', action = 'store',
+        type = argparse.FileType('w'),
+        dest = 'out_64', help = ("Outputs sequence information in "
+            "FASTQ format with Phred+64 scores to the specified file."))
+    output_format.add_argument('--out_fasta', action = 'store',
+        type = argparse.FileType('w'),
+        dest = 'out_fasta', help = ("Outputs sequences in FASTA format "
+            "to the specified file."))
+    output_format.add_argument('--out_qual', action = 'store',
+        type = argparse.FileType('w'),
+        dest = 'out_qual', help =("Outputs sequence quality scores in "
+            "numerical format to the specified file."))
+    argparser.add_argument('--min_qual',action='store', dest="min_qual",
+        type = int, default = 0,
+        help=("Minimum quality score, if a base with a "
+            "lower quality score is found, then all bases at that "
+            "position or later will be trimmed off of the sequence."))
+    options = argparser.parse_args()
+    return options
+
+def get_input_sequences(opts):
+    if opts.in_33:
+        in_parser= FastqParser(opts.in_33,phred = 33)
+
+    elif opts.in_64:
+        in_parser= FastqParser(opts.in_33,phred = 64)
+
+    elif opts.in_fasta or opts.in_qual:
+        if not opts.in_fasta and opts.in_qual:
+            print("ERROR: '.qual' input file must be specified with "
+                  "a corresponding FASTA file.", file=sys.stderr)
+            sys.exit(1)
+        elif opts.in_fasta and opts.in_qual:
+            in_parser = FastaWithQualityParser(opts.in_fasta, opts.in_qual)
+        else:
+            in_parser = FastaParser(opts.in_fasta)
+
+    return in_parser
+
+def validate_args(opts):
+    if (opts.out_33 or opts.out_64 or opts.out_qual) and \
+       (opts.in_fasta and not opts.in_qual):
+           print("ERROR: Can't specify output type with quality "
+                 "scores without input type containing quality "
+                 "scores.", file = sys.stderr)
+           sys.exit(1)
+    if opts.in_fasta == '-' and opts.in_qual == '-':
+           print("ERROR: Can't read both FASTA file and '.qual' "
+                 "file from stdin.", file = sys.stderr)
+           sys.exit(1)
+
+
+def write_sequence(seq, opts):
+    if opts.out_33:
+        seq.write_fastq(33, opts.out_33)
+    if opts.out_64:
+        seq.write_fastq(64, opts.out_64)
+    if opts.out_fasta:
+        seq.write_fasta(opts.out_fasta, opts.line_len)
+    if opts.out_qual:
+        seq.write_qual(opts.out_qual)
+
+def main(args):
+    opts = parse_arg(args)
+    validate_Args(opts)
+    in_parser = get_input_sequences(opts)
+
+    for seq in input_seqs:
+        if isinstance(seq,FastqEntry):
+            for pos,score in enumerate(seq.scores):
+                if score < opts.min_qual: 
+                    break
+            seq.sequence = seq.sequence[0:pos]
+            seq.scores = seq.scores[0:pos]
+
+        write_sequence(seq,opts)
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

@@ -5,15 +5,6 @@ import gzip
 
 from binf_utils.fasta_fastq_parser import *
 
-
-def input_type(filename):
-    if filename == "-": 
-        return sys.stdin
-    elif filename.endswith(".gz"): 
-        return gzip.open(filename, 'r')
-    else:
-        return open(filename,'r')
-
 def parse_arg(args):
     argparser = argparse.ArgumentParser(description = (
         "Convert between FASTx file types containing sequence and/or "
@@ -25,20 +16,16 @@ def parse_arg(args):
         "not ASCII characters."))
     input_format = argparser.add_mutually_exclusive_group(required = True)
     input_format.add_argument('--in_33', action = 'store',
-        type=input_type,
         dest = 'in_33', help = ("Specifies the name of an input FASTQ "
             "file with scores in Phred+33 format."))
     input_format.add_argument('--in_64', action = 'store',
-        type = input_type,
         dest = 'in_64', help = ("Specifies the name of an input FASTQ "
             "file with scores in Phred+64 format."))
     input_format.add_argument('--in_fasta', action = 'store',
-        type = input_type,
         dest = 'in_fasta', help = ("Specifies the name of "
             "the input FASTA file. Requires a file with numerical quality "
             "scores specified by --in_qual."))
     argparser.add_argument('--in_qual', action = 'store',
-        type = input_type,
         dest = 'in_qual', help =("Specifies the name of "
             "the input quality file containing numerical scores "
             "corresponding to the FASTA sequences specified by "
@@ -103,9 +90,9 @@ def validate_args(opts):
 
 def write_sequence(seq, opts):
     if opts.out_33:
-        seq.write_fastq(33, opts.out_33)
+        seq.write_fastq(opts.out_33, 33)
     if opts.out_64:
-        seq.write_fastq(64, opts.out_64)
+        seq.write_fastq(opts.out_64, 64)
     if opts.out_fasta:
         seq.write_fasta(opts.out_fasta, opts.line_len)
     if opts.out_qual:
@@ -113,11 +100,11 @@ def write_sequence(seq, opts):
 
 def main(args):
     opts = parse_arg(args)
-    validate_Args(opts)
+    validate_args(opts)
     in_parser = get_input_sequences(opts)
 
-    for seq in input_seqs:
-        if isinstance(seq,FastqEntry):
+    for seq in in_parser:
+        if isinstance(seq,FastqSeq):
             for pos,score in enumerate(seq.scores):
                 if score < opts.min_qual: 
                     break

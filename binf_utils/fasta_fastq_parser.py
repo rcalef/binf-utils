@@ -54,7 +54,7 @@ class FastqSeq(FastaSeq):
     """
     def __init__(self, identifier, comment, sequence, qual_scores):
         super().__init__(identifier,comment,sequence)
-        self.scores=qual_scores
+        self.scores = qual_scores
 
     def write_fastq(self, output, phred = 33):
         print("@%s %s\n%s\n+\n%s" % (self.identifier,
@@ -134,7 +134,6 @@ class FastaParser(BaseFastxParser):
 
         #If we reach the end of file, then return last entry
         yield FastaSeq(identifier,comment,"".join(lines))
-
 
 class FastaWithQualityParser(FastaParser):
     """Parser for FASTA file with a separate .qual file.
@@ -239,9 +238,6 @@ class FastqParser(BaseFastxParser):
         return self._get_fastq_entries()
 
     def _get_fastq_entries(self):
-        seq_id = ""
-        comment = "" 
-        sequence = ""
         scores = []
 
         while True:
@@ -262,9 +258,9 @@ class FastqParser(BaseFastxParser):
                     if symbol not in self.fastq_allowed_bases:
                         print("WARNING Encountered symbol not "
                               "in alphabet: %s\nSequence: %s, position: %d"
-                        % (char,identifier,pos),file=sys.stderr)
+                        % (char,seq_id,pos),file=sys.stderr)
 
-                        if replace_invalid:
+                        if self._replace_invalid:
                             line[pos] = 'N'
                 _ = next(self._fastq_fh)
                 score_line = next(self._fastq_fh).strip()
@@ -279,3 +275,4 @@ class FastqParser(BaseFastxParser):
                                            "character: %s" % (seq_id,char))
                 scores.append(score)
             yield FastqSeq(seq_id, comment, sequence, scores)
+            scores = []

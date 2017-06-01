@@ -15,41 +15,46 @@ def parse_arg(args):
         "files must be encoded as whitespace separated decimal numbers, "
         "not ASCII characters."))
     input_format = argparser.add_mutually_exclusive_group(required = True)
-    input_format.add_argument('--in_33', action = 'store',
-        dest = 'in_33', help = ("Specifies the name of an input FASTQ "
+    input_format.add_argument('--in-33',
+       help = ("Specifies the name of an input FASTQ "
             "file with scores in Phred+33 format."))
-    input_format.add_argument('--in_64', action = 'store',
-        dest = 'in_64', help = ("Specifies the name of an input FASTQ "
+    input_format.add_argument('--in-64', 
+       help = ("Specifies the name of an input FASTQ "
             "file with scores in Phred+64 format."))
-    input_format.add_argument('--in_fasta', action = 'store',
-        dest = 'in_fasta', help = ("Specifies the name of "
+    input_format.add_argument('--in-fasta', 
+       help = ("Specifies the name of "
             "the input FASTA file. Requires a file with numerical quality "
-            "scores specified by --in_qual."))
-    argparser.add_argument('--in_qual', action = 'store',
-        dest = 'in_qual', help =("Specifies the name of "
+            "scores specified by --in-qual."))
+    argparser.add_argument('--in-qual', 
+       help = ("Specifies the name of "
             "the input quality file containing numerical scores "
             "corresponding to the FASTA sequences specified by "
             "--in_fasta."))
 
     output_format = argparser.add_argument_group()
-    output_format.add_argument('--out_33', action = 'store',
+    output_format.add_argument('--out-33',
        type = argparse.FileType('w'),
-       dest = 'out_33', help = ("Outputs sequence information in "
+       help = ("Outputs sequence information in "
            "FASTQ format with Phred+33 scores to the specified file."))
-    output_format.add_argument('--out_64', action = 'store',
+    output_format.add_argument('--out-64',
         type = argparse.FileType('w'),
-        dest = 'out_64', help = ("Outputs sequence information in "
+        help = ("Outputs sequence information in "
             "FASTQ format with Phred+64 scores to the specified file."))
-    output_format.add_argument('--out_fasta', action = 'store',
+    output_format.add_argument('--out-fasta', 
         type = argparse.FileType('w'),
-        dest = 'out_fasta', help = ("Outputs sequences in FASTA format "
+        help = ("Outputs sequences in FASTA format "
             "to the specified file."))
-    output_format.add_argument('--out_qual', action = 'store',
+    output_format.add_argument('--out-qual',
         type = argparse.FileType('w'),
-        dest = 'out_qual', help =("Outputs sequence quality scores in "
+        help = ("Outputs sequence quality scores in "
             "numerical format to the specified file."))
-    argparser.add_argument('--min_qual',action='store', dest="min_qual",
+    argparser.add_argument('-m','--min-qual',
         type = int, default = 0,
+        help=("Minimum quality score, if a base with a "
+            "lower quality score is found, then all bases at that "
+            "position or later will be trimmed off of the sequence."))
+    argparser.add_argument('-l','--line-length',
+        type = int, default = 100,
         help=("Minimum quality score, if a base with a "
             "lower quality score is found, then all bases at that "
             "position or later will be trimmed off of the sequence."))
@@ -82,11 +87,6 @@ def validate_args(opts):
                  "scores without input type containing quality "
                  "scores.", file = sys.stderr)
            sys.exit(1)
-    if opts.in_fasta == '-' and opts.in_qual == '-':
-           print("ERROR: Can't read both FASTA file and '.qual' "
-                 "file from stdin.", file = sys.stderr)
-           sys.exit(1)
-
 
 def write_sequence(seq, opts):
     if opts.out_33:
@@ -94,7 +94,7 @@ def write_sequence(seq, opts):
     if opts.out_64:
         seq.write_fastq(opts.out_64, 64)
     if opts.out_fasta:
-        seq.write_fasta(opts.out_fasta, opts.line_len)
+        seq.write_fasta(opts.out_fasta, opts.line_length)
     if opts.out_qual:
         seq.write_qual(opts.out_qual)
 
@@ -112,7 +112,6 @@ def main(args):
             seq.scores = seq.scores[0:pos]
 
         write_sequence(seq,opts)
-
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv))

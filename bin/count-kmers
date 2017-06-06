@@ -1,0 +1,83 @@
+#! /usr/bin/env python2.7
+"""Reads in FASTA data and outputs a list of kmers and number of occurences.
+
+Kmer counting program that breaks FASTA sequences in to kmers of a specified
+length, counts the occurences of each kmer, and outputs a list of kmers and 
+counts in JSON format. 
+"""
+import sys
+import argparse
+import string
+import json
+from collections import Counter
+from operator import itemgetter
+
+from binf_utils.fasta_fastq_parser import FastaParser 
+from binf_utils.kmers import count_kmers, check_alphabet
+
+
+def parse_arg():
+    argparser = argparse.ArgumentParser(
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description = __doc__)
+    argparser.add_argument('-i','--input', default='-', 
+        help = ("Input FASTA file, reads from stdin if not specified."))
+    argparser.add_argument('-k', required=True, type=int,
+        help = ("Specifies length of kmer to count."))
+    argparser.add_argument('-a','--alphabet',
+        default=string.ascii_uppercase,
+        help = ("Specifies the alphabet of valid characters in the "
+               "FASTA sequences, defaults to all uppercase letters. " 
+               "Characters not in the alphabet will either be replaced with "
+               "'N'or raise an exception depending on the '--ignore-invalid' "
+               "option. Replacing invalid characters will create kmers that "
+               "weren't present in the original sequence."))
+    argparser.add_argument('--replace-invalid',action='store_true',
+        help = ("Replace characters not in the alphabet with selected " 
+               "character before counting kmers."))
+    argparser.add_argument('--replacement-char', default = 'N',
+        help = ("Use to specify the character used to replace invalid " 
+               "characters before counting kmers."))
+    argparser.add_argument('--start', default='^',
+        help = ("Specifies the character to be used to represent "
+              "the beginning of a sequence. Set to empty string for no "
+              "start character."))
+    argparser.add_argument('--stop', default='$',
+        help = ("Specifies the character to be used to represent "
+               "the end of a sequence. Set to empty string for no "
+            "stop character."))
+    argparser.add_argument('-c','--sort-by-count',action='store_true',
+        help = ("Output k-mer/count pairs "
+                "sorted by count instead of by kmer."))
+    argparser.add_argument('-r','--reverse',action='store_true',
+        help = ("Output k-mer/count pairs in "
+                "reverse of the specified order. Can be combined with "
+               "'--sort-by-count' to output in descending order of count."))
+    opts = argparser.parse_args()
+
+    check_alphabet(opts.alphabet,opts.start,opts.stop)
+    return opts
+    
+
+def print_counts(counts, sort_by_counts, reverse):
+    key = 1 if sort_by_counts else 0
+    for kmer,count in sorted(counts.items(), 
+                             key = itemgetter(key),
+                             reverse = reverse):
+        print("\t".join(map(str,(kmer,count))))
+
+def main(args):
+    opts = parse_arg()
+    parser = FastaParser(opts.input,
+                         opts.alphabet,
+                         opts.replace_invalid,
+                         opts.replacement_char)
+    total_counts = Counter()
+
+    for seq in parser: 
+        total_counts += count_kmers(seq.sequence, opts.k, opts.start, opts.stop)
+
+    print_counts(total_counts, opts.sort_by_count, opts.reverse)
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

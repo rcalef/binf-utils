@@ -99,9 +99,17 @@ class FastaParser(BaseFastxParser):
                                'M','N','P','Q','R','S','T','U','V','W','X',
                                'Y','Z','-','*'])
 
-    def __init__(self, filename, replace_invalid = False):
+    def __init__(self, 
+                 filename,
+                 alphabet = None,
+                 replace_invalid = False,
+                 replace_char = 'N'):
+        if not alphabet:
+            alphabet = self.fasta_allowed_bases
+        self._alphabet = alphabet
         self._fasta_fh = open_file(filename)
-        self.replace_invald = replace_invalid
+        self._replace_invalid = replace_invalid
+        self._replace_char = replace_char
 
     def __iter__(self):
         return self._get_fasta_seqs()
@@ -122,15 +130,17 @@ class FastaParser(BaseFastxParser):
                 lines = []
                 continue
 
-            line = line.strip()
+            line = list(line.strip())
             for pos,char in enumerate(line):
-                if char.upper() not in self.fasta_allowed_bases:
-                    print("WARNING Encountered symbol not "
-                          "in alphabet: %s\nSequence: %s, position: %d"
-                          % (char,identifier,pos),file=sys.stderr)
-                    if replace_invalid:
-                        line[pos] = 'N'
-            lines.append(line) 
+                if char.upper() not in self._alphabet:
+                    if self._replace_invalid:
+                        line[pos] = self._replace_char 
+                    else:
+                        raise ParsingException("Encountered symbol not "
+                                               "in alphabet: %s\nSequence: %s, "
+                                               "position: %d"
+                                               % (char,identifier,pos))
+            lines.append(''.join(line)) 
 
         #If we reach the end of file, then return last entry
         yield FastaSeq(identifier,comment,"".join(lines))
@@ -142,8 +152,12 @@ class FastaWithQualityParser(FastaParser):
     if there's any mismatch in the number of sequences in the two files, the
     lengths of the sequences, or their identifiers.
     """
-    def __init__(self, fasta_fn, qual_fn, replace_invalid = False):
-        super().__init__(fasta_fn,replace_invalid)
+    def __init__(self,
+                 fasta_fn,
+                 qual_fn,
+                 alphabet = None,
+                 replace_invalid = False):
+        super().__init__(fasta_fn,alphabet,replace_invalid)
         self._qual_fh = open_file(qual_fn)
 
     def __iter__(self):
@@ -164,7 +178,7 @@ class FastaWithQualityParser(FastaParser):
 
         if any((found_fasta,found_qual)) and not \
            all((found_fasta,found_qual)):
-               raise ParsingException("ERROR: Number of FASTA sequences not "
+               raise ParsingException("Number of FASTA sequences not "
                                       "equal to number of quality sequences.")
 
         if not found_fasta and not found_qual:
@@ -180,12 +194,12 @@ class FastaWithQualityParser(FastaParser):
     @staticmethod
     def _validate_seq_and_qual(fasta,qual):
         if fasta.identifier != qual.identifier:
-            raise ParsingException("ERROR: FASTA sequence and associated "
+            raise ParsingException("FASTA sequence and associated "
                                    "quality score entry have different "
                                    "identifiers. FASTA: %s, scores: %s" 
                                    % (fasta.identifer,qual.identifier))
         if len(fasta.sequence) != len(qual.scores):
-            raise ParsingException("ERROR: FASTA sequence '%s' and associated "
+            raise ParsingException("FASTA sequence '%s' and associated "
                                    "quality scores have different lengths. "
                                    "FASTA: %d, scores: %d" 
                                    % (fasta.identifier,
@@ -210,7 +224,7 @@ class FastaWithQualityParser(FastaParser):
             parts = line.split()
             for part in parts:
                 if not part.isdigit() or int(part) < 0:
-                    raise ParsingException("ERROR: Encountered invalid "
+                    raise ParsingException("Encountered invalid "
                                            "quality score for sequence %s, "
                                            "score: %s" % (identifier,part))
             scores.extend(map(int,parts))
@@ -229,10 +243,19 @@ class FastqParser(BaseFastxParser):
     fastq_allowed_bases = set(['A','C','G','T','N','U','K','S','Y','M',
                                'W','R','B','D','H','V','-'])
 
-    def __init__(self, fastq_fn, phred = 33, replace_invalid = False):
+    def __init__(self,
+                 fastq_fn,
+                 phred = 33,
+                 alphabet = None,
+                 replace_invalid = False,
+                 replace_char = 'N'):
+        if not alphabet:
+            alphabet = self.fastq_allowed_bases
+        self._alphabet = alphabet
         self._fastq_fh = open_file(fastq_fn)
         self._phred = phred
         self._replace_invalid = replace_invalid
+        self._replace_char = replace_char
 
     def __iter__(self):
         return self._get_fastq_entries()
@@ -246,33 +269,35 @@ class FastqParser(BaseFastxParser):
             try:
                 line = next(self._fastq_fh)
                 if not line.startswith('@'):
-                    raise ParsingException("ERROR: Malformed FASTQ file near "
+                    raise ParsingException("Malformed FASTQ file near "
                                            "sequence: %s" % (seq_id))
                 seq_id,comment = self.header_split(line)
             except StopIteration:
                 break
 
             try:
-                sequence = next(self._fastq_fh).strip()
+                sequence = list(next(self._fastq_fh).strip())
                 for pos,symbol in enumerate(sequence):
-                    if symbol not in self.fastq_allowed_bases:
-                        print("WARNING Encountered symbol not "
-                              "in alphabet: %s\nSequence: %s, position: %d"
-                        % (char,seq_id,pos),file=sys.stderr)
-
+                    if symbol not in self._alphabet:
                         if self._replace_invalid:
-                            line[pos] = 'N'
+                            sequence[pos] = self._replace_char
+                        else:
+                            raise ParsingException("Encountered symbol not "
+                                                   "in alphabet: %s\nSequence: "
+                                                   "%s, position: %d"
+                                                   % (char,seq_id,pos))
+
                 _ = next(self._fastq_fh)
                 score_line = next(self._fastq_fh).strip()
             except StopIteration:
-                raise ParsingException("ERROR: Unexpected end of file when "
+                raise ParsingException("Unexpected end of file when "
                                        "parsing FASTQ sequence: %s" % (seq_id))
             for char in score_line:
                 score = ord(char) - self._phred
                 if score < 0:
-                    raise ParsingException("ERROR: Phred score less than zero "
+                    raise ParsingException("Phred score less than zero "
                                            "(wrong Phred offset?), sequence: %s, "
                                            "character: %s" % (seq_id,char))
                 scores.append(score)
-            yield FastqSeq(seq_id, comment, sequence, scores)
+            yield FastqSeq(seq_id, comment, ''.join(sequence), scores)
             scores = []

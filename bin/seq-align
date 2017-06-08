@@ -1,0 +1,77 @@
+#! /usr/bin/env python3
+"""Calculates optimal global or local pairwise alignments with affine gap cost.
+
+
+seq-align is essentially a wrapper for the LocalAligner and GlobalAligner
+classes defined in the align.py file. This program will take in input in
+FASTA format from stdin or a specified file and calculate pairwise alignments of
+the first sequence in the FASTA data (the master sequence) against all other
+sequences in the FASTA file (the slave sequences). Alignments will be output
+to stdout in A2M format.
+"""
+import sys
+import argparse
+
+from binf_utils.align import GlobalAligner,LocalAligner 
+from binf_utils.fasta_fastq_parser import FastaParser
+
+
+def parse_arg():
+    argparser = argparse.ArgumentParser(
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description = __doc__)
+    argparser.add_argument('-s','--subst_matrix', required = True,
+        help = ("Specify a file containing a substitution matrix in the format "
+              "used by matblas and BLAST. For a detailed description of the "
+              "format, see the docstring for the BaseAffineAligner class in "
+              "the align.py module. A copy of the BLOSUM62 matrix can be found "
+              "at 'static/BLOSUM62 in the binf-utils repo."))
+    argparser.add_argument('-a','--align', required = True, 
+        choices = ['local','global'],
+        help = ("Specifies global or local alignments."))
+    argparser.add_argument('-o','--open', default = 12, type = int,
+        help =("An optional integer specifying the gap open penalty. "
+               "Defaults to 12.")) 
+    argparser.add_argument('-e', '--extend', default = 1, type = int,
+        help=("An optional integer specifying the gap extension penalty. "
+              "Defaults to 1."))
+    argparser.add_argument('-d','--double_gap', default = 3, type = int,
+        help=("An optional integer specifying the double gap penalty."
+              "Defaults to 3. "))
+    argparser.add_argument('-i','--in_file', default = '-',
+        help=("Specify the FASTA file containing sequences to calculate "
+        "alignments for. Defaults to reading from stdin."))
+    argparser.add_argument('-p','--print_score', action = 'store_true',
+        default = False,
+        help=("Add alignment score to the comment section of the A2M output."))
+    opts = argparser.parse_args()
+    return opts
+    
+
+def main(args):
+    opts = parse_arg()
+
+    if opts.align == 'local':
+        align_class = LocalAligner
+    else:
+        align_class = GlobalAligner
+    aligner = align_class(opts.subst_matrix,
+                          opts.open,
+                          opts.extend,
+                          opts.double_gap)
+
+    # Get the master sequence
+    fasta_reader = FastaParser(opts.in_file, alphabet = aligner.alphabet)
+    master_entry = next(fasta_reader.__iter__())
+    master_entry.write_fasta(sys.stdout)
+
+    # Calculate alignments one at a time
+    for fasta_seq in fasta_reader:
+        score = aligner.align(master_entry.sequence,fasta_seq.sequence)
+        fasta_seq.sequence = aligner.traceback_col_seq()
+        if opts.print_score:
+            fasta_seq.comment += (" (alignment_score = %d)" % score)
+        fasta_seq.write_fasta(sys.stdout)
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

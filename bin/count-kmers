@@ -1,4 +1,4 @@
-#! /usr/bin/env python2.7
+#! /usr/bin/env python3
 """Reads in FASTA data and outputs a list of kmers and number of occurences.
 
 Kmer counting program that breaks FASTA sequences in to kmers of a specified

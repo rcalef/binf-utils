@@ -1,4 +1,4 @@
-#! /usr/bin/env python3.3
+#! /usr/bin/env python3
 """Classes for representing FASTA and FASTQ sequences and parsers.
 
 This module defines classes for representing FASTA and FASTQ sequences, 
@@ -12,9 +12,8 @@ import operator
 import argparse
 
 from .utils import open_file
+from .exceptions import ParsingException
 
-class ParsingException(Exception):
-    pass
 
 class FastaSeq:
     """Represents a single sequence in FASTA format.

@@ -1,4 +1,3 @@
-#! /usr/bin/env python3.3
 import gzip
 import bz2
 import sys
@@ -15,3 +14,7 @@ def open_file(filename,mode="r"):
             return sys.stdout
     else:
         return open(filename,mode)
+
+def max_argmax(**kwargs):
+    arg = max(kwargs.keys(), key = lambda x: kwargs[x])
+    return (kwargs[arg],arg)
